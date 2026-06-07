@@ -36,6 +36,4 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# /ios and /android committed — prebuild (bare) project with custom native config
