@@ -1,0 +1,136 @@
+{
+  "expo": {
+    "name": "Smartech_Reactnative_Expo",
+    "slug": "smartech-reactnative-expo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.netcore.smartechreactnativeexpo",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app uses location for personalization"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.netcore.smartechreactnativeexpo",
+      "googleServicesFile": "./google-services.json",
+      "allowBackup": true,
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "netcorepx"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "smartech-base-expo-plugin",
+        {
+          "isNewArchEnabled": true,
+          "deepLinkDelay": 3,
+          "android": {
+            "isLogEnabled": true,
+            "SMARTECH_BASE_SDK_VERSION": "3.8.2",
+            "isKotlinProject": true,
+            "autoFetchLocation": false,
+            "addTestDevice": true,
+            "backupXMLFiles": "assets/backup",
+            "smartechMetaData": [
+              {
+                "name": "SMT_APP_ID",
+                "value": ""
+              }
+            ],
+            "smartechNudges": {
+              "smartechNudgesEnabled": true,
+              "addTestDevice": true,
+              "useEncryption": false,
+              "SMARTECH_NUDGE_SDK_VERSION": "10.3.1",
+              "isLogEnabled": true,
+              "smartechNudgesMetaData": [
+                {
+                  "name": "HANSEL_APP_ID",
+                  "value": ""
+                },
+                {
+                  "name": "HANSEL_APP_KEY",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "ios": {
+            "appId": "",
+            "bundleIdentifier": "com.netcore.smartechreactnativeexpo",
+            "groupIdentifier": "com.netcore.smartechreactnativeexpo",
+            "autoFetchLocation": false,
+            "useAdvID": false,
+            "isLogEnabled": true,
+            "smartechNudges": {
+              "smartechNudgesEnabled": false,
+              "appId": "",
+              "appKey": "",
+              "addTestDevice": false,
+              "isLogEnabled": false
+            }
+          }
+        }
+      ],
+      [
+        "smartech-push-expo-plugin",
+        {
+          "autoAskNotificationPermission": true,
+          "android": {
+            "SMARTECH_PUSH_SDK_VERSION": "3.8.2",
+            "isKotlinProject": true,
+            "useSmartechFCM": true
+          },
+          "ios": {
+            "groupIdentifier": "com.netcore.smartechreactnativeexpo",
+            "mode": "development"
+          }
+        }
+      ],
+      [
+        "smartech-appinbox-expo-plugin",
+        {
+          "android": {
+            "SMARTECH_APPINBOX_SDK_VERSION": "3.8.0"
+          }
+        }
+      ],
+      "./withKotlinVersion.js",
+      "./withSmartechSetup.js",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

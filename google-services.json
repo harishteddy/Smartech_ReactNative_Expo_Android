@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "865355097397",
+    "project_id": "smartech-react-expo",
+    "storage_bucket": "smartech-react-expo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:865355097397:android:104fb02db217abee27187c",
+        "android_client_info": {
+          "package_name": "com.netcore.smartechreactnativeexpo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANxEhGrS-ckSAa3SckaXzB4CkAQHRC_5w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
