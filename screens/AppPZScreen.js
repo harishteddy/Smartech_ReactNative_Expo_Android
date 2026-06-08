@@ -19,6 +19,7 @@ const NC_MUTED = '#6C757D';
 // ── Demo banners shown until live widget data arrives ─────────────────────────
 const DEMO_BANNERS = [
   {
+    widgetRef: null,
     title: 'App Personalization',
     message: 'Content served dynamically from Smartech widget data',
     mediaUrl: '',
@@ -29,6 +30,7 @@ const DEMO_BANNERS = [
     ctaTextColor: PZ_GREEN,
   },
   {
+    widgetRef: null,
     title: 'Smart Recommendations',
     message: 'Widget-driven banners adapt to each user in real time',
     mediaUrl: '',
@@ -39,6 +41,7 @@ const DEMO_BANNERS = [
     ctaTextColor: '#F59E0B',
   },
   {
+    widgetRef: null,
     title: 'Track & Convert',
     message: 'Widget impressions and clicks sent to CE analytics',
     mediaUrl: '',
@@ -51,88 +54,130 @@ const DEMO_BANNERS = [
 ];
 
 // ── Widget data parser ────────────────────────────────────────────────────────
+//
+// Native SDK sends data as:
+// {
+//   "community_carousel": {
+//     layoutType: "json",          ← key field
+//     widgetName, widgetId, campaignId, audienceId, contentId,
+//     content: {
+//       title, message, mediaUrl, deeplinkUrl, backgroundColor,   ← empty for layoutType=json
+//       actionButtons: [],
+//       customKeyValueParams: {
+//         "json": '{"banners":[{title,message,mediaUrl,deeplinkUrl,actionButtons,backgroundColor}]}'
+//       }                          ← payloadAsJson is stored here as stringified JSON
+//     },
+//     customKeyValueParams: {},
+//     gaParams: {}
+//   }
+// }
+//
+// For layoutType="json": real data is in content.customKeyValueParams.json (a JSON string)
+// For other layouts:      real data is in content.title / content.message / etc.
 
-function mapBannerItem(b) {
+function mapBannerItem(b, widgetRef) {
   return {
-    title:           b.title       ?? b.heading     ?? b.name    ?? '',
-    message:         b.message     ?? b.description ?? b.body    ?? '',
-    mediaUrl:        b.mediaUrl    ?? b.imageUrl    ?? b.image   ?? '',
-    deeplinkUrl:     b.deeplinkUrl ?? b.deeplink    ?? b.url     ?? '',
+    widgetRef,
+    title:           b.title           ?? b.heading     ?? b.name    ?? '',
+    message:         b.message         ?? b.description ?? b.body    ?? '',
+    mediaUrl:        b.mediaUrl        ?? b.imageUrl    ?? b.image   ?? '',
+    deeplinkUrl:     b.deeplinkUrl     ?? b.deeplink    ?? b.url     ?? '',
     backgroundColor: b.backgroundColor || b.bgColor || PZ_GREEN,
-    ctaLabel:        b.actionButtons?.[0]?.actionName       ?? '',
-    ctaBgColor:      b.actionButtons?.[0]?.backgroundColor  ?? '#FFFFFF',
-    ctaTextColor:    b.actionButtons?.[0]?.textColor        ?? PZ_GREEN,
+    ctaLabel:        b.actionButtons?.[0]?.actionName      ?? '',
+    ctaBgColor:      b.actionButtons?.[0]?.backgroundColor ?? '#FFFFFF',
+    ctaTextColor:    b.actionButtons?.[0]?.textColor       ?? PZ_GREEN,
   };
-}
-
-function parseSingleWidget(widget) {
-  if (!widget) return [];
-
-  // Path 1: content.json banners array
-  const rawJson = widget?.content?.json;
-  if (rawJson) {
-    try {
-      const json = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
-      if (Array.isArray(json?.banners) && json.banners.length > 0) {
-        return json.banners.map(mapBannerItem);
-      }
-    } catch (_) {}
-  }
-
-  // Path 2: customKeyValueParams may contain JSON strings
-  for (const params of [widget?.content?.customKeyValueParams, widget?.customKeyValueParams]) {
-    if (!params || typeof params !== 'object') continue;
-    for (const val of Object.values(params)) {
-      if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
-        try {
-          const decoded = JSON.parse(val);
-          const arr = decoded?.banners ?? (Array.isArray(decoded) ? decoded : null);
-          if (Array.isArray(arr) && arr.length > 0) return arr.map(mapBannerItem);
-        } catch (_) {}
-      } else if (val && typeof val === 'object') {
-        if (Array.isArray(val?.banners) && val.banners.length > 0) return val.banners.map(mapBannerItem);
-      }
-    }
-  }
-
-  // Path 3: standard content fields (single image widget)
-  const c = widget?.content;
-  if (c?.mediaUrl || c?.title) {
-    const ab = c?.actionButtons?.[0];
-    return [{
-      title:           c.title           ?? '',
-      message:         c.message         ?? '',
-      mediaUrl:        c.mediaUrl        ?? '',
-      deeplinkUrl:     ab?.actionDeeplink ?? c.deeplinkUrl ?? '',
-      backgroundColor: c.backgroundColor || PZ_GREEN,
-      ctaLabel:        ab?.actionName    ?? '',
-      ctaBgColor:      ab?.backgroundColor ?? '#FFFFFF',
-      ctaTextColor:    ab?.textColor       ?? PZ_GREEN,
-    }];
-  }
-
-  return [];
 }
 
 function parseWidgetBanners(data) {
   try {
-    const keys = Object.keys(data ?? {});
-    console.log('[AppPZ] widget keys:', keys);
-    const all = [];
-    const seen = new Set();
+    console.log('[AppPZ] Raw widget data:', JSON.stringify(data));
+
+    if (!data || typeof data !== 'object') {
+      console.warn('[AppPZ] Widget data is null or not an object');
+      return [];
+    }
+
+    const keys = Object.keys(data);
+    console.log('[AppPZ] Widget keys:', keys);
+
+    if (keys.length === 0) {
+      console.warn('[AppPZ] No widgets in data');
+      return [];
+    }
+
+    const allBanners = [];
 
     for (const key of keys) {
       const widget = data[key];
-      const canonicalName = (widget?.widgetName ?? key).trim();
-      if (seen.has(canonicalName)) continue;
-      seen.add(canonicalName);
-      const banners = parseSingleWidget(widget);
-      console.log(`[AppPZ] "${canonicalName}" → ${banners.length} banner(s)`);
-      all.push(...banners);
+      if (!widget) continue;
+
+      const layoutType = widget.layoutType ?? '';
+      const content    = widget.content ?? {};
+      console.log(`[AppPZ] Widget "${key}" layoutType="${layoutType}" content:`, JSON.stringify(content));
+
+      // ── PATH 1: layoutType=json → banners are in content.customKeyValueParams.json ──
+      if (layoutType === 'json') {
+        const cvp = content.customKeyValueParams ?? {};
+        // The SDK stores payloadAsJson values as stringified JSON strings
+        for (const [cvpKey, cvpVal] of Object.entries(cvp)) {
+          console.log(`[AppPZ] customKeyValueParams["${cvpKey}"] =`, cvpVal);
+          try {
+            const parsed = typeof cvpVal === 'string' ? JSON.parse(cvpVal) : cvpVal;
+            // payloadAsJson = { "json": { "banners": [...] } }
+            // after stringification cvpKey="json" and parsed = { "banners": [...] }
+            const banners = parsed?.banners ?? (Array.isArray(parsed) ? parsed : null);
+            if (Array.isArray(banners) && banners.length > 0) {
+              console.log(`[AppPZ] Found ${banners.length} banner(s) in "${key}.content.customKeyValueParams.${cvpKey}"`);
+              allBanners.push(...banners.map(b => mapBannerItem(b, widget)));
+              break;
+            }
+          } catch (_) {}
+        }
+
+        // Also check widget-level customKeyValueParams as fallback
+        if (allBanners.length === 0) {
+          const wcvp = widget.customKeyValueParams ?? {};
+          for (const [k, v] of Object.entries(wcvp)) {
+            try {
+              const parsed = typeof v === 'string' ? JSON.parse(v) : v;
+              const banners = parsed?.banners ?? (Array.isArray(parsed) ? parsed : null);
+              if (Array.isArray(banners) && banners.length > 0) {
+                console.log(`[AppPZ] Found ${banners.length} banner(s) in "${key}.customKeyValueParams.${k}"`);
+                allBanners.push(...banners.map(b => mapBannerItem(b, widget)));
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+        continue; // done with this widget
+      }
+
+      // ── PATH 2: standard layout → direct content fields ──
+      if (content.title || content.mediaUrl || content.message) {
+        const ab = Array.isArray(content.actionButtons) && content.actionButtons.length > 0
+          ? content.actionButtons[0] : null;
+        allBanners.push({
+          widgetRef:       widget,
+          title:           content.title           ?? '',
+          message:         content.message         ?? '',
+          mediaUrl:        content.mediaUrl        ?? '',
+          deeplinkUrl:     ab?.actionDeeplink       ?? content.deeplinkUrl ?? '',
+          backgroundColor: content.backgroundColor || PZ_GREEN,
+          ctaLabel:        ab?.actionName           ?? '',
+          ctaBgColor:      ab?.backgroundColor      ?? '#FFFFFF',
+          ctaTextColor:    ab?.textColor            ?? PZ_GREEN,
+        });
+        continue;
+      }
+
+      console.warn(`[AppPZ] Widget "${key}" had no parseable content`);
     }
-    return all;
+
+    console.log(`[AppPZ] Total banners parsed: ${allBanners.length}`);
+    return allBanners;
   } catch (e) {
-    console.warn('[AppPZ] parse error:', e);
+    console.error('[AppPZ] parseWidgetBanners error:', e);
     return [];
   }
 }
@@ -150,11 +195,14 @@ export default function AppPZScreen({ navigation }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [banners, setBanners] = useState(DEMO_BANNERS);
   const [isLiveData, setIsLiveData] = useState(false);
+  const [widgetNames, setWidgetNames] = useState([]);
+  const [statusMsg, setStatusMsg] = useState('Demo content · Tap Sync to load live data');
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
 
   const startAutoScroll = useCallback((count) => {
     if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
+    if (count <= 1) return;
     autoScrollTimer.current = setInterval(() => {
       setCurrentIndex(prev => {
         const next = (prev + 1) % count;
@@ -169,32 +217,115 @@ export default function AppPZScreen({ navigation }) {
     return () => { if (autoScrollTimer.current) clearInterval(autoScrollTimer.current); };
   }, [banners.length, startAutoScroll]);
 
+  // ── Fetch widgets ─────────────────────────────────────────────────────────
+
+  const fetchWidgets = useCallback(() => {
+    setStatusMsg('Fetching widget names...');
+    console.log('[AppPZ] Fetching all widget names...');
+
+    SmartechBaseReact.getAllWidgetNames((err, res) => {
+      if (err) {
+        console.warn('[AppPZ] getAllWidgetNames error:', err);
+        setStatusMsg('No widgets found · Check Smartech CE panel');
+        // Fallback: try getAllWidgets directly
+        console.log('[AppPZ] Falling back to getAllWidgets()');
+        SmartechBaseReact.getAllWidgets();
+        return;
+      }
+
+      console.log('[AppPZ] getAllWidgetNames result:', JSON.stringify(res));
+
+      // res could be an array of widget name strings
+      const names = Array.isArray(res) ? res : (res ? [res] : []);
+      console.log('[AppPZ] Widget names:', names);
+      setWidgetNames(names);
+
+      if (names.length === 0) {
+        console.warn('[AppPZ] No widget names returned, trying getAllWidgets()');
+        setStatusMsg('No widgets configured · Check Smartech CE panel');
+        SmartechBaseReact.getAllWidgets();
+        return;
+      }
+
+      setStatusMsg(`Loading ${names.length} widget(s)...`);
+      // Fetch all widgets by their names
+      SmartechBaseReact.getWidgetByNames(names);
+    });
+  }, []);
+
   // ── Widget listener ───────────────────────────────────────────────────────
 
   useEffect(() => {
     HanselRn.onSetScreen('AppPZ');
     SmartechBaseReact.trackEvent('screen_load', { screen: 'app_personalization' });
 
-    SmartechBaseReact.addListener(SmartechBaseReact.SmartechWidgetDataReceived, (data) => {
-      console.log('[AppPZ] SmartechWidgetDataReceived:', JSON.stringify(data));
-      const parsed = parseWidgetBanners(data);
-      if (parsed.length > 0) {
-        setBanners(parsed);
-        setIsLiveData(true);
-        setCurrentIndex(0);
-        carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
-      }
-    });
+    // Register listener BEFORE fetching
+    const subscription = SmartechBaseReact.addListener(
+      SmartechBaseReact.SmartechWidgetDataReceived,
+      (data) => {
+        console.log('[AppPZ] SmartechWidgetDataReceived fired');
+        const parsed = parseWidgetBanners(data);
 
-    SmartechBaseReact.getAllWidgets();
+        if (parsed.length > 0) {
+          console.log('[AppPZ] Setting live banners:', parsed.length);
+          setBanners(parsed);
+          setIsLiveData(true);
+          setStatusMsg('Live widget data loaded');
+          setCurrentIndex(0);
+          carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
+          // Track first banner as viewed
+          if (parsed[0].widgetRef) {
+            SmartechBaseReact.trackWidgetAsViewed(parsed[0].widgetRef);
+          }
+        } else {
+          console.warn('[AppPZ] Received widget data but parsed 0 banners');
+          setStatusMsg('Widgets received but no content · Check widget setup');
+        }
+      }
+    );
+
+    // Fetch after listener is registered
+    fetchWidgets();
 
     return () => {
       HanselRn.onUnsetScreen();
-      SmartechBaseReact.removeListener(SmartechBaseReact.SmartechWidgetDataReceived);
+      if (subscription && typeof subscription.remove === 'function') {
+        subscription.remove();
+      } else {
+        SmartechBaseReact.removeListener(SmartechBaseReact.SmartechWidgetDataReceived);
+      }
+      if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
     };
   }, []);
 
-  const syncContent = () => SmartechBaseReact.getAllWidgets();
+  const syncContent = () => {
+    setIsLiveData(false);
+    setBanners(DEMO_BANNERS);
+    fetchWidgets();
+  };
+
+  // ── Track viewed when carousel scrolls ───────────────────────────────────
+
+  const onCarouselScroll = (e) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    setCurrentIndex(idx);
+    startAutoScroll(banners.length);
+    // Track widget viewed when it becomes visible
+    if (isLiveData && banners[idx]?.widgetRef) {
+      SmartechBaseReact.trackWidgetAsViewed(banners[idx].widgetRef);
+    }
+  };
+
+  // ── Handle CTA click ──────────────────────────────────────────────────────
+
+  const onBannerCtaPress = (banner) => {
+    if (isLiveData && banner.widgetRef) {
+      SmartechBaseReact.trackWidgetAsClicked(banner.widgetRef);
+    }
+    if (banner.deeplinkUrl) {
+      SmartechBaseReact.trackEvent('widget_cta_clicked', { deeplink: banner.deeplinkUrl });
+    }
+  };
 
   const onProductPress = (product) => {
     SmartechBaseReact.trackEvent('product_viewed', {
@@ -240,12 +371,10 @@ export default function AppPZScreen({ navigation }) {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             keyExtractor={(_, i) => String(i)}
-            renderItem={({ item }) => <BannerSlide item={item} />}
-            onMomentumScrollEnd={e => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-              setCurrentIndex(idx);
-              startAutoScroll(banners.length);
-            }}
+            renderItem={({ item }) => (
+              <BannerSlide item={item} onCtaPress={() => onBannerCtaPress(item)} />
+            )}
+            onMomentumScrollEnd={onCarouselScroll}
             onScrollBeginDrag={() => {
               if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
             }}
@@ -259,9 +388,7 @@ export default function AppPZScreen({ navigation }) {
           {/* Live pill */}
           <View style={styles.liveRow}>
             <View style={[styles.liveDot, isLiveData && styles.liveDotActive]} />
-            <Text style={styles.liveText}>
-              {isLiveData ? 'Live widget data' : 'Demo content · Tap Sync to load live data'}
-            </Text>
+            <Text style={styles.liveText}>{statusMsg}</Text>
           </View>
         </View>
 
@@ -344,7 +471,7 @@ export default function AppPZScreen({ navigation }) {
 
 // ── Banner Slide ──────────────────────────────────────────────────────────────
 
-function BannerSlide({ item }) {
+function BannerSlide({ item, onCtaPress }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = !!item.mediaUrl && !imgError;
   const initial = item.title.trim().split(' ').slice(0, 2).join('').substring(0, 2).toUpperCase();
@@ -361,9 +488,12 @@ function BannerSlide({ item }) {
         {!!item.title && <Text style={styles.bannerTitle}>{item.title}</Text>}
         {!!item.message && <Text style={styles.bannerMessage}>{item.message}</Text>}
         {!!item.ctaLabel && (
-          <View style={[styles.bannerCta, { backgroundColor: item.ctaBgColor }]}>
+          <TouchableOpacity
+            style={[styles.bannerCta, { backgroundColor: item.ctaBgColor }]}
+            onPress={onCtaPress}
+            activeOpacity={0.85}>
             <Text style={[styles.bannerCtaText, { color: item.ctaTextColor }]}>{item.ctaLabel}</Text>
-          </View>
+          </TouchableOpacity>
         )}
       </View>
     </View>
