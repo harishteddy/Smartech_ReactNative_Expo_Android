@@ -11,9 +11,9 @@ const NC_DARK = '#1A1A2E';
 
 const SDK_CARDS = [
   { id: 'ce', title: 'CE Dashboard', subtitle: 'Customer Engagement', icon: '📊', screen: 'CEDashboard', color: '#3B82F6' },
+  { id: 'apppz', title: 'App Personalization', subtitle: 'Widget Content', icon: '🎯', screen: 'AppPZ', color: '#10B981' },
   { id: 'events', title: 'Event Tracking', subtitle: 'Track user actions', icon: '⚡', screen: 'Events', color: '#F59E0B' },
   { id: 'inbox', title: 'App Inbox', subtitle: 'In-app messages', icon: '📬', screen: 'CustomInbox', color: '#10B981' },
-  { id: 'px', title: 'PX Dashboard', subtitle: 'Personalization', icon: '🎯', screen: 'PXDashboard', color: '#8B5CF6' },
   { id: 'shop', title: 'Shop', subtitle: 'E-commerce tracking', icon: '🛍️', screen: 'Shop', color: '#EC4899' },
   { id: 'profile', title: 'Profile', subtitle: 'User management', icon: '👤', screen: 'Profile', color: '#06B6D4' },
   { id: 'settings', title: 'Settings', subtitle: 'SDK preferences', icon: '⚙️', screen: 'Settings', color: '#6B7280' },

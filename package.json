@@ -17,6 +17,7 @@
     "expo": "~56.0.9",
     "expo-constants": "~56.0.17",
     "expo-font": "~56.0.5",
+    "expo-location": "~56.0.16",
     "expo-modules-core": "~56.0.15",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
@@ -36,5 +37,9 @@
     "@babel/core": "^7.25.2"
   },
   "private": true,
-  "overrides": {}
+  "overrides": {
+    "@react-native/babel-preset": "0.85.3",
+    "@react-native/babel-plugin-codegen": "0.85.3",
+    "@react-native/codegen": "0.85.3"
+  }
 }

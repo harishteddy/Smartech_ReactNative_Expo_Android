@@ -288,14 +288,6 @@ export default function PXDashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Navigate to App PZ */}
-        <TouchableOpacity
-          style={styles.appPzBtn}
-          onPress={() => navigation.navigate('AppPZ')}
-          activeOpacity={0.85}>
-          <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.appPzBtnText}>Open App Personalization →</Text>
-        </TouchableOpacity>
 
       </ScrollView>
     </View>
@@ -411,6 +403,4 @@ const styles = StyleSheet.create({
   sectionDividerLine: { flex: 1, height: 1, backgroundColor: '#E5E5E5' },
   sectionDividerDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E5E5E5', marginHorizontal: 10 },
 
-  appPzBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: NC_RED, marginHorizontal: 16, marginTop: 16, borderRadius: 14, paddingVertical: 15 },
-  appPzBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 });

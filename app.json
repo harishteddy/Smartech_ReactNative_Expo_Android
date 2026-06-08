@@ -10,7 +10,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.netcore.smartechreactnativeexpo",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app uses location for personalization"
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to deliver personalised content and geo-targeted campaigns.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location in the background to trigger geo-fence campaigns even when the app is closed.",
+        "NSLocationAlwaysUsageDescription": "Background location access is required for geo-fence notifications."
       }
     },
     "android": {
@@ -25,7 +27,8 @@
       "allowBackup": true,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ],
       "intentFilters": [
         {
@@ -121,6 +124,16 @@
           "android": {
             "SMARTECH_APPINBOX_SDK_VERSION": "3.8.0"
           }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "This app uses your location in the background to trigger geo-fence campaigns.",
+          "locationAlwaysPermission": "Background location is needed for geo-fence notifications.",
+          "locationWhenInUsePermission": "This app uses your location to deliver personalised content.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       "./withKotlinVersion.js",

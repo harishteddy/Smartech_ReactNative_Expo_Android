@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, StatusBar, Image, FlatList, Dimensions,
+  Platform, StatusBar, Image, FlatList, Dimensions, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SmartechBaseReact from 'smartech-base-react-native';
@@ -19,7 +19,6 @@ const NC_MUTED = '#6C757D';
 // ── Demo banners shown until live widget data arrives ─────────────────────────
 const DEMO_BANNERS = [
   {
-    widgetRef: null,
     title: 'App Personalization',
     message: 'Content served dynamically from Smartech widget data',
     mediaUrl: '',
@@ -30,7 +29,6 @@ const DEMO_BANNERS = [
     ctaTextColor: PZ_GREEN,
   },
   {
-    widgetRef: null,
     title: 'Smart Recommendations',
     message: 'Widget-driven banners adapt to each user in real time',
     mediaUrl: '',
@@ -41,7 +39,6 @@ const DEMO_BANNERS = [
     ctaTextColor: '#F59E0B',
   },
   {
-    widgetRef: null,
     title: 'Track & Convert',
     message: 'Widget impressions and clicks sent to CE analytics',
     mediaUrl: '',
@@ -53,35 +50,22 @@ const DEMO_BANNERS = [
   },
 ];
 
-// ── Widget data parser ────────────────────────────────────────────────────────
-//
-// Native SDK sends data as:
-// {
-//   "community_carousel": {
-//     layoutType: "json",          ← key field
-//     widgetName, widgetId, campaignId, audienceId, contentId,
-//     content: {
-//       title, message, mediaUrl, deeplinkUrl, backgroundColor,   ← empty for layoutType=json
-//       actionButtons: [],
-//       customKeyValueParams: {
-//         "json": '{"banners":[{title,message,mediaUrl,deeplinkUrl,actionButtons,backgroundColor}]}'
-//       }                          ← payloadAsJson is stored here as stringified JSON
-//     },
-//     customKeyValueParams: {},
-//     gaParams: {}
-//   }
-// }
-//
-// For layoutType="json": real data is in content.customKeyValueParams.json (a JSON string)
-// For other layouts:      real data is in content.title / content.message / etc.
+// ── Widget banner parser ──────────────────────────────────────────────────────
+// The SDK emits a MAP of {widgetName: widgetData} — not a single widget object.
+// We iterate every key, parse each widget's banners, then deduplicate by widgetName.
 
-function mapBannerItem(b, widgetRef) {
+// layoutType is carried into each banner so BannerSlide can render appropriately:
+//   "image"  → full-width image with CTA pill overlaid at bottom
+//   "json"   → text+image card (may or may not have a mediaUrl)
+//   "text"   → colour background + text only
+
+function mapBannerItem(b, layoutType = 'json') {
   return {
-    widgetRef,
-    title:           b.title           ?? b.heading     ?? b.name    ?? '',
-    message:         b.message         ?? b.description ?? b.body    ?? '',
-    mediaUrl:        b.mediaUrl        ?? b.imageUrl    ?? b.image   ?? '',
-    deeplinkUrl:     b.deeplinkUrl     ?? b.deeplink    ?? b.url     ?? '',
+    layoutType,
+    title:           b.title       ?? b.heading     ?? b.name    ?? '',
+    message:         b.message     ?? b.description ?? b.body    ?? '',
+    mediaUrl:        b.mediaUrl    ?? b.imageUrl    ?? b.image   ?? '',
+    deeplinkUrl:     b.deeplinkUrl ?? b.deeplink    ?? b.url     ?? '',
     backgroundColor: b.backgroundColor || b.bgColor || PZ_GREEN,
     ctaLabel:        b.actionButtons?.[0]?.actionName      ?? '',
     ctaBgColor:      b.actionButtons?.[0]?.backgroundColor ?? '#FFFFFF',
@@ -89,95 +73,107 @@ function mapBannerItem(b, widgetRef) {
   };
 }
 
+function parseSingleWidget(widget) {
+  if (!widget) return [];
+
+  const layoutType = widget?.layoutType ?? 'json';
+
+  // Path 1 — content.json (populated after the Kotlin native bridge fix)
+  // Used by layoutType:"json" widgets whose banners array lives in SMTWidgetContent.json
+  const rawJson = widget?.content?.json;
+  if (rawJson) {
+    try {
+      const json = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      const arr = json?.banners;
+      if (Array.isArray(arr) && arr.length > 0) {
+        console.log('[CPZ] Path1 content.json banners =', arr.length, 'layoutType =', layoutType);
+        return arr.map(b => mapBannerItem(b, layoutType));
+      }
+      // root-level array e.g. [{...},{...}]
+      if (Array.isArray(json) && json.length > 0) {
+        console.log('[CPZ] Path1 content.json root-array =', json.length);
+        return json.map(b => mapBannerItem(b, layoutType));
+      }
+    } catch (e) {
+      console.warn('[CPZ] content.json parse error:', e);
+    }
+  }
+
+  // Path 2 — customKeyValueParams (JSON strings / nested objects)
+  for (const params of [widget?.content?.customKeyValueParams, widget?.customKeyValueParams]) {
+    if (!params || typeof params !== 'object') continue;
+    for (const val of Object.values(params)) {
+      if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+        try {
+          const decoded = JSON.parse(val);
+          const arr = decoded?.banners ?? (Array.isArray(decoded) ? decoded : null);
+          if (Array.isArray(arr) && arr.length > 0) {
+            console.log('[CPZ] Path2 customKV banners =', arr.length);
+            return arr.map(b => mapBannerItem(b, layoutType));
+          }
+        } catch (_) {}
+      } else if (val && typeof val === 'object') {
+        const arr = val?.banners;
+        if (Array.isArray(arr) && arr.length > 0) {
+          return arr.map(b => mapBannerItem(b, layoutType));
+        }
+      }
+    }
+  }
+
+  // Path 3 — standard content fields
+  // Handles layoutType:"image" (single mediaUrl) and layoutType:"text" (title/message only)
+  const c = widget?.content;
+  if (c?.mediaUrl || c?.title) {
+    const ab = c?.actionButtons?.[0];
+    const lt = c?.mediaUrl ? (layoutType || 'image') : 'text';
+    console.log('[CPZ] Path3 standard content, layoutType =', lt, 'mediaUrl =', !!c?.mediaUrl);
+    return [{
+      layoutType:      lt,
+      title:           c.title           ?? '',
+      message:         c.message         ?? '',
+      mediaUrl:        c.mediaUrl        ?? '',
+      deeplinkUrl:     ab?.actionDeeplink ?? c.deeplinkUrl ?? '',
+      backgroundColor: c.backgroundColor || PZ_GREEN,
+      ctaLabel:        ab?.actionName     ?? '',
+      ctaBgColor:      ab?.backgroundColor ?? '#FFFFFF',
+      ctaTextColor:    ab?.textColor       ?? PZ_GREEN,
+    }];
+  }
+
+  return [];
+}
+
 function parseWidgetBanners(data) {
   try {
-    console.log('[AppPZ] Raw widget data:', JSON.stringify(data));
+    const keys = Object.keys(data ?? {});
+    console.log('[CPZ] parseWidgetBanners: widget keys =', keys);
 
-    if (!data || typeof data !== 'object') {
-      console.warn('[AppPZ] Widget data is null or not an object');
-      return [];
-    }
-
-    const keys = Object.keys(data);
-    console.log('[AppPZ] Widget keys:', keys);
-
-    if (keys.length === 0) {
-      console.warn('[AppPZ] No widgets in data');
-      return [];
-    }
-
-    const allBanners = [];
+    const all = [];
+    const processedWidgetNames = new Set();
 
     for (const key of keys) {
       const widget = data[key];
-      if (!widget) continue;
+      const canonicalName = (widget?.widgetName ?? key).trim();
 
-      const layoutType = widget.layoutType ?? '';
-      const content    = widget.content ?? {};
-      console.log(`[AppPZ] Widget "${key}" layoutType="${layoutType}" content:`, JSON.stringify(content));
-
-      // ── PATH 1: layoutType=json → banners are in content.customKeyValueParams.json ──
-      if (layoutType === 'json') {
-        const cvp = content.customKeyValueParams ?? {};
-        // The SDK stores payloadAsJson values as stringified JSON strings
-        for (const [cvpKey, cvpVal] of Object.entries(cvp)) {
-          console.log(`[AppPZ] customKeyValueParams["${cvpKey}"] =`, cvpVal);
-          try {
-            const parsed = typeof cvpVal === 'string' ? JSON.parse(cvpVal) : cvpVal;
-            // payloadAsJson = { "json": { "banners": [...] } }
-            // after stringification cvpKey="json" and parsed = { "banners": [...] }
-            const banners = parsed?.banners ?? (Array.isArray(parsed) ? parsed : null);
-            if (Array.isArray(banners) && banners.length > 0) {
-              console.log(`[AppPZ] Found ${banners.length} banner(s) in "${key}.content.customKeyValueParams.${cvpKey}"`);
-              allBanners.push(...banners.map(b => mapBannerItem(b, widget)));
-              break;
-            }
-          } catch (_) {}
-        }
-
-        // Also check widget-level customKeyValueParams as fallback
-        if (allBanners.length === 0) {
-          const wcvp = widget.customKeyValueParams ?? {};
-          for (const [k, v] of Object.entries(wcvp)) {
-            try {
-              const parsed = typeof v === 'string' ? JSON.parse(v) : v;
-              const banners = parsed?.banners ?? (Array.isArray(parsed) ? parsed : null);
-              if (Array.isArray(banners) && banners.length > 0) {
-                console.log(`[AppPZ] Found ${banners.length} banner(s) in "${key}.customKeyValueParams.${k}"`);
-                allBanners.push(...banners.map(b => mapBannerItem(b, widget)));
-                break;
-              }
-            } catch (_) {}
-          }
-        }
-        continue; // done with this widget
-      }
-
-      // ── PATH 2: standard layout → direct content fields ──
-      if (content.title || content.mediaUrl || content.message) {
-        const ab = Array.isArray(content.actionButtons) && content.actionButtons.length > 0
-          ? content.actionButtons[0] : null;
-        allBanners.push({
-          widgetRef:       widget,
-          title:           content.title           ?? '',
-          message:         content.message         ?? '',
-          mediaUrl:        content.mediaUrl        ?? '',
-          deeplinkUrl:     ab?.actionDeeplink       ?? content.deeplinkUrl ?? '',
-          backgroundColor: content.backgroundColor || PZ_GREEN,
-          ctaLabel:        ab?.actionName           ?? '',
-          ctaBgColor:      ab?.backgroundColor      ?? '#FFFFFF',
-          ctaTextColor:    ab?.textColor            ?? PZ_GREEN,
-        });
+      if (processedWidgetNames.has(canonicalName)) {
+        console.log(`[CPZ] "${key}" skipped — duplicate of "${canonicalName}"`);
         continue;
       }
+      processedWidgetNames.add(canonicalName);
 
-      console.warn(`[AppPZ] Widget "${key}" had no parseable content`);
+      const banners = parseSingleWidget(widget);
+      console.log(`[CPZ] "${canonicalName}" → ${banners.length} banner(s) parsed`);
+      all.push(...banners);
     }
 
-    console.log(`[AppPZ] Total banners parsed: ${allBanners.length}`);
-    return allBanners;
+    console.log(
+      `[CPZ] final banner count: ${all.length} ` +
+      `(from ${processedWidgetNames.size} unique widget(s): ${[...processedWidgetNames].join(', ')})`
+    );
+    return all;
   } catch (e) {
-    console.error('[AppPZ] parseWidgetBanners error:', e);
+    console.warn('[CPZ] parseWidgetBanners error:', e);
     return [];
   }
 }
@@ -195,63 +191,24 @@ export default function AppPZScreen({ navigation }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [banners, setBanners] = useState(DEMO_BANNERS);
   const [isLiveData, setIsLiveData] = useState(false);
-  const [widgetNames, setWidgetNames] = useState([]);
-  const [statusMsg, setStatusMsg] = useState('Demo content · Tap Sync to load live data');
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
 
-  const startAutoScroll = useCallback((count) => {
+  const startAutoScroll = useCallback(() => {
     if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
-    if (count <= 1) return;
     autoScrollTimer.current = setInterval(() => {
       setCurrentIndex(prev => {
-        const next = (prev + 1) % count;
+        const next = (prev + 1) % banners.length;
         carouselRef.current?.scrollToOffset({ offset: next * SCREEN_WIDTH, animated: true });
         return next;
       });
     }, 3000);
-  }, []);
+  }, [banners.length]);
 
   useEffect(() => {
-    startAutoScroll(banners.length);
+    startAutoScroll();
     return () => { if (autoScrollTimer.current) clearInterval(autoScrollTimer.current); };
-  }, [banners.length, startAutoScroll]);
-
-  // ── Fetch widgets ─────────────────────────────────────────────────────────
-
-  const fetchWidgets = useCallback(() => {
-    setStatusMsg('Fetching widget names...');
-    console.log('[AppPZ] Fetching all widget names...');
-
-    SmartechBaseReact.getAllWidgetNames((err, res) => {
-      if (err) {
-        console.warn('[AppPZ] getAllWidgetNames error:', err);
-        setStatusMsg('No widgets found · Check Smartech CE panel');
-        // Fallback: try getAllWidgets directly
-        console.log('[AppPZ] Falling back to getAllWidgets()');
-        SmartechBaseReact.getAllWidgets();
-        return;
-      }
-
-      console.log('[AppPZ] getAllWidgetNames result:', JSON.stringify(res));
-
-      // res could be an array of widget name strings
-      const names = Array.isArray(res) ? res : (res ? [res] : []);
-      console.log('[AppPZ] Widget names:', names);
-      setWidgetNames(names);
-
-      if (names.length === 0) {
-        console.warn('[AppPZ] No widget names returned, trying getAllWidgets()');
-        setStatusMsg('No widgets configured · Check Smartech CE panel');
-        SmartechBaseReact.getAllWidgets();
-        return;
-      }
-
-      setStatusMsg(`Loading ${names.length} widget(s)...`);
-      // Fetch all widgets by their names
-      SmartechBaseReact.getWidgetByNames(names);
-    });
-  }, []);
+  }, [startAutoScroll]);
 
   // ── Widget listener ───────────────────────────────────────────────────────
 
@@ -259,73 +216,35 @@ export default function AppPZScreen({ navigation }) {
     HanselRn.onSetScreen('AppPZ');
     SmartechBaseReact.trackEvent('screen_load', { screen: 'app_personalization' });
 
-    // Register listener BEFORE fetching
-    const subscription = SmartechBaseReact.addListener(
+    SmartechBaseReact.addListener(
       SmartechBaseReact.SmartechWidgetDataReceived,
       (data) => {
-        console.log('[AppPZ] SmartechWidgetDataReceived fired');
+        console.log('[CPZ] SmartechWidgetDataReceived raw ::', JSON.stringify(data));
         const parsed = parseWidgetBanners(data);
-
+        console.log('[CPZ] parsed banners count =', parsed.length);
         if (parsed.length > 0) {
-          console.log('[AppPZ] Setting live banners:', parsed.length);
           setBanners(parsed);
           setIsLiveData(true);
-          setStatusMsg('Live widget data loaded');
           setCurrentIndex(0);
           carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
-          // Track first banner as viewed
-          if (parsed[0].widgetRef) {
-            SmartechBaseReact.trackWidgetAsViewed(parsed[0].widgetRef);
-          }
-        } else {
-          console.warn('[AppPZ] Received widget data but parsed 0 banners');
-          setStatusMsg('Widgets received but no content · Check widget setup');
         }
-      }
+      },
     );
 
-    // Fetch after listener is registered
-    fetchWidgets();
+    // Trigger widget fetch so live data loads on screen open
+    SmartechBaseReact.getAllWidgets();
 
     return () => {
       HanselRn.onUnsetScreen();
-      if (subscription && typeof subscription.remove === 'function') {
-        subscription.remove();
-      } else {
-        SmartechBaseReact.removeListener(SmartechBaseReact.SmartechWidgetDataReceived);
-      }
-      if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
+      SmartechBaseReact.removeListener(SmartechBaseReact.SmartechWidgetDataReceived);
     };
   }, []);
 
-  const syncContent = () => {
-    setIsLiveData(false);
-    setBanners(DEMO_BANNERS);
-    fetchWidgets();
-  };
+  // ── Sync button ───────────────────────────────────────────────────────────
 
-  // ── Track viewed when carousel scrolls ───────────────────────────────────
+  const syncContent = () => SmartechBaseReact.getAllWidgets();
 
-  const onCarouselScroll = (e) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    setCurrentIndex(idx);
-    startAutoScroll(banners.length);
-    // Track widget viewed when it becomes visible
-    if (isLiveData && banners[idx]?.widgetRef) {
-      SmartechBaseReact.trackWidgetAsViewed(banners[idx].widgetRef);
-    }
-  };
-
-  // ── Handle CTA click ──────────────────────────────────────────────────────
-
-  const onBannerCtaPress = (banner) => {
-    if (isLiveData && banner.widgetRef) {
-      SmartechBaseReact.trackWidgetAsClicked(banner.widgetRef);
-    }
-    if (banner.deeplinkUrl) {
-      SmartechBaseReact.trackEvent('widget_cta_clicked', { deeplink: banner.deeplinkUrl });
-    }
-  };
+  // ── Product press ─────────────────────────────────────────────────────────
 
   const onProductPress = (product) => {
     SmartechBaseReact.trackEvent('product_viewed', {
@@ -371,10 +290,12 @@ export default function AppPZScreen({ navigation }) {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             keyExtractor={(_, i) => String(i)}
-            renderItem={({ item }) => (
-              <BannerSlide item={item} onCtaPress={() => onBannerCtaPress(item)} />
-            )}
-            onMomentumScrollEnd={onCarouselScroll}
+            renderItem={({ item }) => <BannerSlide item={item} navigation={navigation} />}
+            onMomentumScrollEnd={e => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+              setCurrentIndex(idx);
+              startAutoScroll();
+            }}
             onScrollBeginDrag={() => {
               if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
             }}
@@ -388,7 +309,9 @@ export default function AppPZScreen({ navigation }) {
           {/* Live pill */}
           <View style={styles.liveRow}>
             <View style={[styles.liveDot, isLiveData && styles.liveDotActive]} />
-            <Text style={styles.liveText}>{statusMsg}</Text>
+            <Text style={styles.liveText}>
+              {isLiveData ? 'Live widget data' : 'Demo content · Tap Sync to load live data'}
+            </Text>
           </View>
         </View>
 
@@ -469,34 +392,149 @@ export default function AppPZScreen({ navigation }) {
   );
 }
 
+// ── Deeplink handler ──────────────────────────────────────────────────────────
+function openDeeplink(url, navigation) {
+  if (!url) return;
+  console.log('[CPZ] deeplink tapped:', url);
+  const lower = url.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    Linking.openURL(url).catch(e => console.warn('[CPZ] Linking.openURL failed:', e));
+  } else {
+    // internal scheme — reuse the same routing logic as App.js
+    if (lower.includes('profile'))       navigation.navigate('Profile');
+    else if (lower.includes('event'))    navigation.navigate('Events');
+    else if (lower.includes('inbox'))    navigation.navigate('CustomInbox');
+    else if (lower.includes('shop'))     navigation.navigate('Shop');
+    else if (lower.includes('cart'))     navigation.navigate('Cart');
+    else if (lower.includes('wishlist')) navigation.navigate('Wishlist');
+    else if (lower.includes('cedash'))   navigation.navigate('CEDashboard');
+    else if (lower.includes('pxdash'))   navigation.navigate('PXDashboard');
+    else if (lower.includes('apppz'))    navigation.navigate('AppPZ');
+    else if (lower.includes('settings')) navigation.navigate('Settings');
+    else if (lower.includes('device'))   navigation.navigate('DeviceInfo');
+    else console.warn('[CPZ] unknown deeplink scheme:', url);
+  }
+}
+
 // ── Banner Slide ──────────────────────────────────────────────────────────────
+// Renders differently based on layoutType:
+//   "image"  → full-width photo / product image, no dark overlay, CTA pill at bottom-right
+//   "json"   → text card, image fills background with dark overlay + text on top
+//   "text"   → solid colour background + text only (no image)
 
-function BannerSlide({ item, onCtaPress }) {
-  const [imgError, setImgError] = useState(false);
-  const hasImage = !!item.mediaUrl && !imgError;
-  const initial = item.title.trim().split(' ').slice(0, 2).join('').substring(0, 2).toUpperCase();
+function BannerSlide({ item, navigation }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError]   = useState(false);
 
+  const hasUrl      = !!item.mediaUrl;
+  const showImg     = hasUrl && !imgError;
+  const isImageType = item.layoutType === 'image';
+
+  // Track click + open deeplink
+  const handlePress = () => {
+    if (item.deeplinkUrl) {
+      SmartechBaseReact.trackWidgetAsClicked(item._widgetRaw ?? {});
+      openDeeplink(item.deeplinkUrl, navigation);
+    }
+  };
+
+  const handleCtaPress = () => {
+    SmartechBaseReact.trackWidgetAsClicked(item._widgetRaw ?? {});
+    // CTA deeplink takes precedence; fall back to banner deeplink
+    const url = item.deeplinkUrl;
+    if (url) openDeeplink(url, navigation);
+  };
+
+  // ── IMAGE-TYPE layout ──────────────────────────────────────────────────────
+  if (isImageType) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.95}
+        onPress={handlePress}
+        style={[styles.bannerSlide, { backgroundColor: item.backgroundColor || '#F3F4F6' }]}
+      >
+        {/* Full-size image — cover fills the entire 220px slide */}
+        {showImg && (
+          <Image
+            source={{ uri: item.mediaUrl }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            onLoad={() => {
+              setImgLoaded(true);
+              console.log('[CPZ] image loaded ✓', item.mediaUrl);
+            }}
+            onError={() => {
+              setImgError(true);
+              console.warn('[CPZ] image FAILED to load ✗', item.mediaUrl);
+            }}
+          />
+        )}
+
+        {/* Loading shimmer */}
+        {hasUrl && !imgLoaded && !imgError && (
+          <View style={[StyleSheet.absoluteFill, styles.imgShimmer]} />
+        )}
+
+        {/* Broken-image placeholder */}
+        {imgError && (
+          <View style={styles.imgBroken}>
+            <Ionicons name="image-outline" size={40} color="rgba(255,255,255,0.5)" />
+            <Text style={styles.imgBrokenText}>Image unavailable</Text>
+          </View>
+        )}
+
+        {/* Subtle overlay so CTA pill is always readable */}
+        {showImg && <View style={styles.imgGradient} />}
+
+        {/* CTA pill — tappable, bottom-right */}
+        {!!item.ctaLabel && (
+          <View style={styles.imgCtaRow}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleCtaPress}
+              style={[styles.imgCta, { backgroundColor: item.ctaBgColor }]}
+            >
+              <Text style={[styles.imgCtaText, { color: item.ctaTextColor }]}>{item.ctaLabel}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }
+
+  // ── JSON / TEXT layout ────────────────────────────────────────────────────
+  const initial = (item.title || '').trim().split(' ').slice(0, 2).join('').substring(0, 2).toUpperCase() || '✦';
   return (
-    <View style={[styles.bannerSlide, { backgroundColor: item.backgroundColor }]}>
-      {hasImage ? (
-        <Image source={{ uri: item.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setImgError(true)} />
-      ) : (
-        <Text style={styles.bannerInitial}>{initial}</Text>
+    <TouchableOpacity
+      activeOpacity={0.95}
+      onPress={handlePress}
+      style={[styles.bannerSlide, { backgroundColor: item.backgroundColor }]}
+    >
+      {showImg && (
+        <Image
+          source={{ uri: item.mediaUrl }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          onLoad={() => console.log('[CPZ] json-banner image loaded ✓')}
+          onError={() => setImgError(true)}
+        />
       )}
-      {hasImage && <View style={styles.bannerOverlay} />}
+      {showImg  && <View style={styles.bannerOverlay} />}
+      {!showImg && <Text style={styles.bannerInitial}>{initial}</Text>}
       <View style={styles.bannerContent}>
-        {!!item.title && <Text style={styles.bannerTitle}>{item.title}</Text>}
+        {!!item.title   && <Text style={styles.bannerTitle}>{item.title}</Text>}
         {!!item.message && <Text style={styles.bannerMessage}>{item.message}</Text>}
         {!!item.ctaLabel && (
           <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleCtaPress}
             style={[styles.bannerCta, { backgroundColor: item.ctaBgColor }]}
-            onPress={onCtaPress}
-            activeOpacity={0.85}>
+          >
             <Text style={[styles.bannerCtaText, { color: item.ctaTextColor }]}>{item.ctaLabel}</Text>
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -510,55 +548,67 @@ const styles = StyleSheet.create({
     elevation: 4, shadowColor: PZ_GREEN, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
   },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
-  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
-  syncBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 4 },
+  headerSub:   { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  syncBtn:     { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 4 },
   syncBtnText: { fontSize: 12, fontWeight: '700', color: PZ_GREEN },
 
-  bannerSlide: { width: SCREEN_WIDTH, height: 220, justifyContent: 'flex-end', overflow: 'hidden' },
+  // ── Shared slide container ──────────────────────────────────────────────────
+  bannerSlide:   { width: SCREEN_WIDTH, height: 220, justifyContent: 'flex-end', overflow: 'hidden' },
+
+  // ── layoutType: "image" ─────────────────────────────────────────────────────
+  imgShimmer:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.15)' },
+  imgGradient:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.18)' },
+  imgBroken:     { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', gap: 8 },
+  imgBrokenText: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
+  imgCtaRow:     { paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', justifyContent: 'flex-end' },
+  imgCta:        { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 22 },
+  imgCtaText:    { fontSize: 13, fontWeight: '800' },
+
+  // ── layoutType: "json" / "text" ─────────────────────────────────────────────
   bannerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
   bannerContent: { padding: 20, paddingBottom: 26 },
-  bannerTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', marginBottom: 6 },
+  bannerTitle:   { fontSize: 22, fontWeight: '900', color: '#FFFFFF', marginBottom: 6 },
   bannerMessage: { fontSize: 13, color: 'rgba(255,255,255,0.88)', marginBottom: 14, lineHeight: 18 },
-  bannerCta: { alignSelf: 'flex-start', paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20 },
+  bannerCta:     { alignSelf: 'flex-start', paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20 },
   bannerCtaText: { fontSize: 12, fontWeight: '800' },
   bannerInitial: { position: 'absolute', top: '15%', width: '100%', textAlign: 'center', fontSize: 90, fontWeight: '900', color: 'rgba(255,255,255,0.12)' },
 
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10, backgroundColor: '#FFFFFF', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#E5E5E5' },
-  dotActive: { width: 22, backgroundColor: PZ_GREEN },
-  liveRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingBottom: 10, gap: 6 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D1D5DB' },
+  dotsRow:       { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10, backgroundColor: '#FFFFFF', gap: 6 },
+  dot:           { width: 7, height: 7, borderRadius: 4, backgroundColor: '#E5E5E5' },
+  dotActive:     { width: 22, backgroundColor: PZ_GREEN },
+  liveRow:       { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingBottom: 10, gap: 6 },
+  liveDot:       { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D1D5DB' },
   liveDotActive: { backgroundColor: PZ_GREEN },
-  liveText: { fontSize: 11, color: '#9CA3AF' },
+  liveText:      { fontSize: 11, color: '#9CA3AF' },
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 20, marginBottom: 12 },
+  sectionRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 20, marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: NC_DARK },
-  seeAll: { fontSize: 13, color: PZ_GREEN, fontWeight: '700' },
+  sectionTitle:    { fontSize: 16, fontWeight: '800', color: NC_DARK },
+  seeAll:          { fontSize: 13, color: PZ_GREEN, fontWeight: '700' },
 
-  productGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 10 },
-  productCard: { width: (SCREEN_WIDTH - 34) / 2, backgroundColor: '#FFFFFF', borderRadius: 14, overflow: 'hidden', elevation: 2 },
-  imageWrap: { position: 'relative' },
-  productImage: { width: '100%', height: 150 },
-  productBadge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  productGrid:      { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 10 },
+  productCard:      { width: (SCREEN_WIDTH - 34) / 2, backgroundColor: '#FFFFFF', borderRadius: 14, overflow: 'hidden', elevation: 2 },
+  imageWrap:        { position: 'relative' },
+  productImage:     { width: '100%', height: 150 },
+  productBadge:     { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   productBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
-  wishlistBtn: { position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
-  productInfo: { padding: 10 },
-  productBrand: { fontSize: 9, color: NC_MUTED, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  productName: { fontSize: 13, fontWeight: '700', color: NC_DARK, marginTop: 2 },
-  priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 5 },
-  price: { fontSize: 14, fontWeight: '800', color: NC_DARK },
-  originalPrice: { fontSize: 10, color: '#9CA3AF', textDecorationLine: 'line-through' },
+  wishlistBtn:      { position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
+  productInfo:      { padding: 10 },
+  productBrand:     { fontSize: 9, color: NC_MUTED, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  productName:      { fontSize: 13, fontWeight: '700', color: NC_DARK, marginTop: 2 },
+  priceRow:         { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 5 },
+  price:            { fontSize: 14, fontWeight: '800', color: NC_DARK },
+  originalPrice:    { fontSize: 10, color: '#9CA3AF', textDecorationLine: 'line-through' },
 
-  trendingScroll: { paddingHorizontal: 14, gap: 12 },
-  trendingCard: { width: 160, backgroundColor: '#FFFFFF', borderRadius: 14, overflow: 'hidden', elevation: 2 },
-  trendingImage: { width: '100%', height: 130 },
-  trendingBadge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  trendingScroll:    { paddingHorizontal: 14, gap: 12 },
+  trendingCard:      { width: 160, backgroundColor: '#FFFFFF', borderRadius: 14, overflow: 'hidden', elevation: 2 },
+  trendingImage:     { width: '100%', height: 130 },
+  trendingBadge:     { position: 'absolute', top: 8, left: 8, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   trendingBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
-  trendingInfo: { padding: 10 },
-  trendingBrand: { fontSize: 9, color: NC_MUTED, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  trendingName: { fontSize: 12, fontWeight: '700', color: NC_DARK, marginTop: 2, lineHeight: 17 },
-  trendingPrice: { fontSize: 13, fontWeight: '800', color: NC_DARK, marginTop: 4 },
-  addCartBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: NC_RED, borderRadius: 8, paddingVertical: 7, marginTop: 8 },
-  addCartText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  trendingInfo:      { padding: 10 },
+  trendingBrand:     { fontSize: 9, color: NC_MUTED, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  trendingName:      { fontSize: 12, fontWeight: '700', color: NC_DARK, marginTop: 2, lineHeight: 17 },
+  trendingPrice:     { fontSize: 13, fontWeight: '800', color: NC_DARK, marginTop: 4 },
+  addCartBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: NC_RED, borderRadius: 8, paddingVertical: 7, marginTop: 8 },
+  addCartText:       { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
 });

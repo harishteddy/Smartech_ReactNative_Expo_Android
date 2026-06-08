@@ -175,15 +175,43 @@ export default function App() {
     return () => SmartechBaseReact.removeListener(SmartechBaseReact.SmartechDeeplink);
   }, []);
 
-  // PX / Hansel nudge deeplinks
+  // ── Hansel / PX SDK — all registrations + listeners in one place ──────────
   useEffect(() => {
+    // Register listeners with the native SDK
+    HanselTrackerRn.registerHanselTrackerListener();
+    HanselTrackerRn.registerHanselActionListenerWithActionName('action-name');
     HanselTrackerRn.registerHanselDeeplinkListener();
+
+    // Deeplink event — route to app screen
     HanselTrackerRn.addListener('HanselDeeplinkEvent', (data) => {
-      console.log('PX Nudge Deeplink ::', data?.url);
+      console.log('HanselDeeplinkEvent ::', data?.url);
       routeDeeplink(data?.url ?? '');
     });
+
+    // Deep link listener — log + route deeplink URL
+    HanselTrackerRn.addListener('HanselDeepLinkListener', (e) => {
+      console.log('HanselDeepLinkListener URL:', e.deeplink);
+      if (e?.deeplink) routeDeeplink(e.deeplink);
+    });
+
+    // Internal events — forward to Smartech CE analytics
+    HanselTrackerRn.addListener('HanselInternalEvent', (e) => {
+      console.log('HanselInternalEvent Detail:', e);
+      if (e?.eventName) {
+        SmartechBaseReact.trackEvent(e.eventName, e.properties ?? {});
+      }
+    });
+
+    // Action performed — nudge CTA / button tap callback
+    HanselTrackerRn.addListener('HanselActionPerformed', (e) => {
+      console.log('HanselActionPerformed Action:', e.action);
+    });
+
     return () => {
       HanselTrackerRn.removeListener('HanselDeeplinkEvent');
+      HanselTrackerRn.removeListener('HanselDeepLinkListener');
+      HanselTrackerRn.removeListener('HanselInternalEvent');
+      HanselTrackerRn.removeListener('HanselActionPerformed');
       HanselTrackerRn.deRegisterListener();
     };
   }, []);
