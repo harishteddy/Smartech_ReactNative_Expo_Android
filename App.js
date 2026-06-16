@@ -10,10 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import SmartechBaseReact from 'smartech-base-react-native';
 import SmartechPushReact from 'smartech-push-react-native';
 import SmartechAppInboxReact from 'smartech-appinbox-react-native';
-import { HanselTrackerRn } from 'smartech-reactnative-nudges';
 
 import { ShopProvider } from './store/ShopContext';
-
 // Screens
 import SplashScreen from './screens/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -173,47 +171,6 @@ export default function App() {
     };
     SmartechBaseReact.addListener(SmartechBaseReact.SmartechDeeplink, handleDeeplinkWithPayload);
     return () => SmartechBaseReact.removeListener(SmartechBaseReact.SmartechDeeplink);
-  }, []);
-
-  // ── Hansel / PX SDK — all registrations + listeners in one place ──────────
-  useEffect(() => {
-    // Register listeners with the native SDK
-    HanselTrackerRn.registerHanselTrackerListener();
-    HanselTrackerRn.registerHanselActionListenerWithActionName('action-name');
-    HanselTrackerRn.registerHanselDeeplinkListener();
-
-    // Deeplink event — route to app screen
-    HanselTrackerRn.addListener('HanselDeeplinkEvent', (data) => {
-      console.log('HanselDeeplinkEvent ::', data?.url);
-      routeDeeplink(data?.url ?? '');
-    });
-
-    // Deep link listener — log + route deeplink URL
-    HanselTrackerRn.addListener('HanselDeepLinkListener', (e) => {
-      console.log('HanselDeepLinkListener URL:', e.deeplink);
-      if (e?.deeplink) routeDeeplink(e.deeplink);
-    });
-
-    // Internal events — forward to Smartech CE analytics
-    HanselTrackerRn.addListener('HanselInternalEvent', (e) => {
-      console.log('HanselInternalEvent Detail:', e);
-      if (e?.eventName) {
-        SmartechBaseReact.trackEvent(e.eventName, e.properties ?? {});
-      }
-    });
-
-    // Action performed — nudge CTA / button tap callback
-    HanselTrackerRn.addListener('HanselActionPerformed', (e) => {
-      console.log('HanselActionPerformed Action:', e.action);
-    });
-
-    return () => {
-      HanselTrackerRn.removeListener('HanselDeeplinkEvent');
-      HanselTrackerRn.removeListener('HanselDeepLinkListener');
-      HanselTrackerRn.removeListener('HanselInternalEvent');
-      HanselTrackerRn.removeListener('HanselActionPerformed');
-      HanselTrackerRn.deRegisterListener();
-    };
   }, []);
 
   // OS Linking — background

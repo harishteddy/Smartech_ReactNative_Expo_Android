@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import SmartechBaseReact from 'smartech-base-react-native';
-import { HanselUserRn } from 'smartech-reactnative-nudges';
 
 const NC_RED  = '#E11D48';
 const NC_DARK = '#1A1A2E';
@@ -190,7 +189,6 @@ export default function UpdateProfileScreen({ navigation }) {
     if (!Object.keys(payload).length) { Alert.alert('Error', 'Fill at least one field'); return; }
 
     SmartechBaseReact.updateUserProfile(payload);
-    if (form.email) HanselUserRn.setUserId(form.email);
     SmartechBaseReact.trackEvent('profile_updated', { fields: Object.keys(payload).join(',') });
 
     Alert.alert('Success', 'Profile updated successfully', [

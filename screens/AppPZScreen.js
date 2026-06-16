@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SmartechBaseReact from 'smartech-base-react-native';
-import { HanselRn } from 'smartech-reactnative-nudges';
 import { Ionicons } from '@expo/vector-icons';
 import { ALL_PRODUCTS, useShop } from '../store/ShopContext';
 
@@ -213,7 +212,6 @@ export default function AppPZScreen({ navigation }) {
   // ── Widget listener ───────────────────────────────────────────────────────
 
   useEffect(() => {
-    HanselRn.onSetScreen('AppPZ');
     SmartechBaseReact.trackEvent('screen_load', { screen: 'app_personalization' });
 
     SmartechBaseReact.addListener(
@@ -235,7 +233,6 @@ export default function AppPZScreen({ navigation }) {
     SmartechBaseReact.getAllWidgets();
 
     return () => {
-      HanselRn.onUnsetScreen();
       SmartechBaseReact.removeListener(SmartechBaseReact.SmartechWidgetDataReceived);
     };
   }, []);

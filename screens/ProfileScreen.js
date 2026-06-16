@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import SmartechBaseReact from 'smartech-base-react-native';
-import { HanselUserRn } from 'smartech-reactnative-nudges';
 import { clearSession } from '../utils/authSession';
 
 const NC_RED   = '#E11D48';
@@ -76,7 +75,6 @@ export default function ProfileScreen({ navigation }) {
         {
           text: 'Logout', style: 'destructive', onPress: () => {
             SmartechBaseReact.logoutAndClearUserIdentity(true);
-            HanselUserRn.clear();
             clearSession();
             navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
           },

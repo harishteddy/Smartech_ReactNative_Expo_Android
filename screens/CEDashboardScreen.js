@@ -9,7 +9,6 @@ import * as Location from 'expo-location';
 import SmartechBaseReact from 'smartech-base-react-native';
 import SmartechPushReact from 'smartech-push-react-native';
 import SmartechAppInboxReact from 'smartech-appinbox-react-native';
-import { HanselUserRn } from 'smartech-reactnative-nudges';
 
 const NC_RED   = '#E11D48';
 const NC_DARK  = '#1A1A2E';
@@ -243,7 +242,6 @@ export default function CEDashboardScreen({ navigation }) {
         text: 'Logout', style: 'destructive',
         onPress: () => {
           SmartechBaseReact.logoutAndClearUserIdentity(true);
-          HanselUserRn.clear();
           navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
         },
       },

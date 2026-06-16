@@ -6,7 +6,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import SmartechBaseReact from 'smartech-base-react-native';
 import SmartechPushReact from 'smartech-push-react-native';
-import { HanselUserRn } from 'smartech-reactnative-nudges';
 import { APP_VERSION } from '../utils/sdkVersions';
 
 const NC_RED   = '#E11D48';
@@ -142,7 +141,6 @@ export default function SettingsScreen({ navigation }) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Logout', style: 'destructive', onPress: () => {
         SmartechBaseReact.logoutAndClearUserIdentity(true);
-        HanselUserRn.clear();
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       }},
     ]);

@@ -22,7 +22,7 @@ export const RN_SDK_VERSIONS = {
   base:     bare(deps['smartech-base-react-native']),
   push:     bare(deps['smartech-push-react-native']),
   appinbox: bare(deps['smartech-appinbox-react-native']),
-  nudges:   bare(deps['smartech-reactnative-nudges']),
+  nudges:   bare(deps['smartech-reactnative-nudges'] ?? ''),
 };
 
 // ── Platform / framework versions (from package.json) ─────────────────────

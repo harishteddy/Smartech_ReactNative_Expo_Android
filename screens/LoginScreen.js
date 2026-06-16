@@ -4,7 +4,6 @@ import {
   ScrollView, StatusBar, Alert, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import SmartechBaseReact from 'smartech-base-react-native';
-import { HanselUserRn } from 'smartech-reactnative-nudges';
 import { saveSession } from '../utils/authSession';
 
 const NC_RED = '#E11D48';
@@ -21,7 +20,6 @@ export default function LoginScreen({ navigation }) {
       NAME: name.trim() || 'Demo User',
       EMAIL: email.trim(),
     });
-    HanselUserRn.setUserId(email.trim());
     SmartechBaseReact.trackEvent('user_login', { method: 'email', email: email.trim() });
     saveSession(email.trim(), name.trim() || 'Demo User');
     navigation.replace('Main');

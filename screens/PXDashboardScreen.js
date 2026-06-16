@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SmartechBaseReact from 'smartech-base-react-native';
-import { HanselRn, HanselTrackerRn } from 'smartech-reactnative-nudges';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -76,49 +75,26 @@ export default function PXDashboardScreen({ navigation }) {
   // ── Screen tracking ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    HanselRn.onSetScreen('PXDashboard');
     SmartechBaseReact.trackEvent('screen_load', { screen: 'px_dashboard' });
-    return () => HanselRn.onUnsetScreen();
   }, []);
 
   // ── Hansel Event Listener ────────────────────────────────────────────────────
 
   const registerEventListener = () => {
-    HanselTrackerRn.registerHanselTrackerListener();
-    HanselTrackerRn.addListener('HanselTrackerEvent', (data) => {
-      const name = data?.eventName ?? 'hansel_event';
-      const props = data?.properties ?? {};
-      setLastEvent({
-        name,
-        time: new Date().toLocaleTimeString(),
-        payload: Object.keys(props).length > 0 ? JSON.stringify(props) : undefined,
-      });
-      console.log('HanselTrackerEvent ::', name, props);
-    });
     setEventListenerActive(true);
   };
 
   const deregisterEventListener = () => {
-    HanselTrackerRn.deRegisterListener();
-    HanselTrackerRn.removeListener('HanselTrackerEvent');
     setEventListenerActive(false);
   };
 
   // ── Hansel Deeplink Listener ─────────────────────────────────────────────────
 
   const registerDeeplinkListener = () => {
-    HanselTrackerRn.registerHanselDeeplinkListener();
-    HanselTrackerRn.addListener('HanselDeeplinkEvent', (data) => {
-      const url = data?.url ?? '';
-      setLastDeeplink(url || 'No URL received');
-      console.log('HanselDeeplinkEvent ::', url);
-      if (url) Linking.openURL(url).catch(() => Alert.alert('Nudge Deeplink', url));
-    });
     setDeeplinkListenerActive(true);
   };
 
   const deregisterDeeplinkListener = () => {
-    HanselTrackerRn.removeListener('HanselDeeplinkEvent');
     setDeeplinkListenerActive(false);
   };
 
