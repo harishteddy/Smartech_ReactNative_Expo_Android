@@ -80,6 +80,7 @@
             "isKotlinProject": true,
             "autoFetchLocation": false,
             "addTestDevice": true,
+            "backupXMLFiles": "./assets/backup",
             "smartechMetaData": [
               {
                 "name": "SMT_APP_ID",

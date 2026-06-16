@@ -7,7 +7,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Smartech_Reactnative_Expo</string>
+    <string>smartech_reactnative_expo</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -19,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.26.0528</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -27,12 +27,29 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>sureport</string>
           <string>com.netcore.smartechreactnativeexpo</string>
+        </array>
+      </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>exp+smartech-reactnative-expo</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+      <string>upi</string>
+      <string>gpay</string>
+      <string>paytm</string>
+      <string>phonpe</string>
+      <string>tez</string>
+    </array>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -44,8 +61,22 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCameraUsageDescription</key>
+    <string>This app needs access to your camera to take a profile picture.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>This app uses contacts to help you easily invite friends and family for referral rewards</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>This app uses location to find nearby cars and provide accurate pickup times.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>This app uses location to find nearby cars and provide accurate pickup times.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app uses location for personalization</string>
+    <string>This app uses location to find nearby cars and provide accurate pickup times.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app needs access to your photo library to upload a profile picture.</string>
+    <key>RCTNewArchEnabled</key>
+    <true/>
     <key>SmartechKeys</key>
     <dict>
       <key>SmartechAppGroup</key>
@@ -57,6 +88,10 @@
       <key>SmartechUseAdvId</key>
       <false/>
     </dict>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>remote-notification</string>
+    </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
@@ -80,7 +115,7 @@
       <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UIUserInterfaceStyle</key>
-    <string>Light</string>
+    <string>Automatic</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
   </dict>

@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'Smartech_Reactnative_Expo'
+rootProject.name = 'smartech_reactnative_expo'
 
 expoAutolinking.useExpoVersionCatalog()
 

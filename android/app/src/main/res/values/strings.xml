@@ -1,3 +1,5 @@
 <resources>
-  <string name="app_name">Smartech_Reactnative_Expo</string>
+  <string name="app_name">smartech_reactnative_expo</string>
+  <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
+  <string name="expo_runtime_version">1.0.0</string>
 </resources>

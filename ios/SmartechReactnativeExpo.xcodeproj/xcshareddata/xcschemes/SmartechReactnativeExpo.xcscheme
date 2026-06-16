@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "SmartechReactnativeExpo.app"
-               BlueprintName = "SmartechReactnativeExpo"
-               ReferencedContainer = "container:SmartechReactnativeExpo.xcodeproj">
+               BuildableName = "smartechreactnativeexpo.app"
+               BlueprintName = "smartechreactnativeexpo"
+               ReferencedContainer = "container:smartechreactnativeexpo.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "SmartechReactnativeExpoTests.xctest"
-               BlueprintName = "SmartechReactnativeExpoTests"
-               ReferencedContainer = "container:SmartechReactnativeExpo.xcodeproj">
+               BuildableName = "smartechreactnativeexpoTests.xctest"
+               BlueprintName = "smartechreactnativeexpoTests"
+               ReferencedContainer = "container:smartechreactnativeexpo.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "SmartechReactnativeExpo.app"
-            BlueprintName = "SmartechReactnativeExpo"
-            ReferencedContainer = "container:SmartechReactnativeExpo.xcodeproj">
+            BuildableName = "smartechreactnativeexpo.app"
+            BlueprintName = "smartechreactnativeexpo"
+            ReferencedContainer = "container:smartechreactnativeexpo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "SmartechReactnativeExpo.app"
-            BlueprintName = "SmartechReactnativeExpo"
-            ReferencedContainer = "container:SmartechReactnativeExpo.xcodeproj">
+            BuildableName = "smartechreactnativeexpo.app"
+            BlueprintName = "smartechreactnativeexpo"
+            ReferencedContainer = "container:smartechreactnativeexpo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

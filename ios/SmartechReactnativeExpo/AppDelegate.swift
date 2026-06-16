@@ -1,10 +1,12 @@
-import Smartech
-internal import Expo
+import Expo
 import React
 import ReactAppDependencyProvider
+import SmartPush
+import UserNotifications
+import Smartech
 
-@main
-class AppDelegate: ExpoAppDelegate {
+@UIApplicationMain
+public class AppDelegate: ExpoAppDelegate , UNUserNotificationCenterDelegate , SmartechDelegate {
   var window: UIWindow?
 
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
@@ -17,12 +19,15 @@ class AppDelegate: ExpoAppDelegate {
         Smartech.sharedInstance().initSDK(with: self, withLaunchOptions: launchOptions)
         Smartech.sharedInstance().setDebugLevel(.verbose)
         Smartech.sharedInstance().trackAppInstallUpdateBySmartech()
+        UNUserNotificationCenter.current().delegate = self
+        SmartPush.sharedInstance().registerForPushNotification(authorizationOptions:  [.alert, .badge, .sound])
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
+    bindReactNativeFactory(factory)
 
 #if os(iOS) || os(tvOS)
     window = UIWindow(frame: UIScreen.main.bounds)
@@ -53,6 +58,29 @@ class AppDelegate: ExpoAppDelegate {
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
   }
+    public override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+        SmartPush.sharedInstance().didRegisterForRemoteNotifications(withDeviceToken: deviceToken)
+    }
+
+    public override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+        SmartPush.sharedInstance().didFailToRegisterForRemoteNotificationsWithError(error)
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate Methods
+    public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        SmartPush.sharedInstance().willPresentForegroundNotification(notification)
+        completionHandler([.sound, .alert, .badge])
+    }
+
+    public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            SmartPush.sharedInstance().didReceive(response)
+        }
+        completionHandler()
+    }
+
     // MARK: - SmartechDelegate Method
    public func handleDeeplinkAction(withURLString deeplinkURLString: String, andNotificationPayload notificationPayload: [AnyHashable : Any]?) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
