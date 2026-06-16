@@ -1,55 +1,74 @@
 {
   "expo": {
-    "name": "Smartech_Reactnative_Expo",
+    "name": "smartech_reactnative_expo",
     "slug": "smartech-reactnative-expo",
-    "version": "1.0.0",
+    "version": "1.26.0528",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "scheme": "sureport",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.netcore.smartechreactnativeexpo",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app uses your location to deliver personalised content and geo-targeted campaigns.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location in the background to trigger geo-fence campaigns even when the app is closed.",
-        "NSLocationAlwaysUsageDescription": "Background location access is required for geo-fence notifications."
+        "NSLocationWhenInUseUsageDescription": "This app uses location to find nearby cars",
+        "NSContactsUsageDescription": "This app uses contacts to help you easily invite friends and family for referral rewards",
+        "LSApplicationQueriesSchemes": [
+          "upi",
+          "gpay",
+          "paytm",
+          "phonpe",
+          "tez"
+        ],
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload a profile picture.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take a profile picture.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.netcore.smartechreactnativeexpo",
-      "googleServicesFile": "./google-services.json",
       "allowBackup": true,
-      "permissions": [
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_BACKGROUND_LOCATION"
-      ],
+      "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
           "data": [
             {
-              "scheme": "netcorepx"
+              "scheme": "sureport"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
+      ],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.NOTIFICATIONS",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
+      "bundler": "metro",
+      "output": "static",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "This app uses location to find nearby cars and provide accurate pickup times.",
+          "locationAlwaysPermission": "This app uses location to find nearby cars and provide accurate pickup times.",
+          "locationWhenInUsePermission": "This app uses location to find nearby cars and provide accurate pickup times."
+        }
+      ],
       [
         "smartech-base-expo-plugin",
         {
@@ -61,7 +80,6 @@
             "isKotlinProject": true,
             "autoFetchLocation": false,
             "addTestDevice": true,
-            "backupXMLFiles": "assets/backup",
             "smartechMetaData": [
               {
                 "name": "SMT_APP_ID",
@@ -69,21 +87,12 @@
               }
             ],
             "smartechNudges": {
-              "smartechNudgesEnabled": true,
-              "addTestDevice": true,
+              "smartechNudgesEnabled": false,
+              "addTestDevice": false,
               "useEncryption": false,
               "SMARTECH_NUDGE_SDK_VERSION": "10.3.1",
-              "isLogEnabled": true,
-              "smartechNudgesMetaData": [
-                {
-                  "name": "HANSEL_APP_ID",
-                  "value": ""
-                },
-                {
-                  "name": "HANSEL_APP_KEY",
-                  "value": ""
-                }
-              ]
+              "isLogEnabled": false,
+              "smartechNudgesMetaData": []
             }
           },
           "ios": {
@@ -106,7 +115,6 @@
       [
         "smartech-push-expo-plugin",
         {
-          "autoAskNotificationPermission": true,
           "android": {
             "SMARTECH_PUSH_SDK_VERSION": "3.8.2",
             "isKotlinProject": true,
@@ -126,24 +134,19 @@
           }
         }
       ],
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "This app uses your location in the background to trigger geo-fence campaigns.",
-          "locationAlwaysPermission": "Background location is needed for geo-fence notifications.",
-          "locationWhenInUsePermission": "This app uses your location to deliver personalised content.",
-          "isIosBackgroundLocationEnabled": true,
-          "isAndroidBackgroundLocationEnabled": true
-        }
-      ],
       "./withKotlinVersion.js",
       "./withSmartechSetup.js",
       "expo-font"
     ],
+    "experiments": {
+      "typedRoutes": true
+    },
     "extra": {
+      "router": {},
       "eas": {
         "projectId": ""
       }
-    }
+    },
+    "runtimeVersion": "1.0.0"
   }
 }
