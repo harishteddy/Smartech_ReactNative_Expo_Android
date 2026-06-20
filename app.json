@@ -42,7 +42,10 @@
               "scheme": "sureport"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
@@ -137,7 +140,8 @@
       ],
       "./withKotlinVersion.js",
       "./withSmartechSetup.js",
-      "expo-font"
+      "expo-font",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
